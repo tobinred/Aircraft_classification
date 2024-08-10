@@ -1,5 +1,5 @@
 ---
-title: "Toby Maclean assignment 4"
+title: "Aircraft classification"
 output:
   word_document: default
   html_document: default
