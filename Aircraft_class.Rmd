@@ -1,0 +1,348 @@
+---
+title: "Toby Maclean assignment 4"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r}
+setwd("~/Desktop/Uni/STAT312")
+library(tidyverse)
+data = read_csv("Airplane_Cleaned.csv",show_col_types = F)
+```
+```{r}
+dim(data)
+```
+The dataset is of aircraft performance, from Aircraft Bluebook (https://aircraftbluebook.com/Tools/ABB/ShowSpecifications.do). The cleaned version of the data was obtained from Kaggle (https://www.kaggle.com/datasets/heitornunes/aircraft-performance-dataset-aircraft-bluebook?resource=download&select=Airplane_Cleaned.csv). For this analysis, the dataset containing airplane specifications and performance figures will be used (i.e. no analysis is conducted on the helicopter section of this dataset). It is a n = 860, p = 25 dataset. The classification problem being addressed is trying to classify the engine type (piston, propjet, or piston) using five numerical performance figures (range, wingspan, height, length, and fuel capacity (FW)). 
+
+A jet engine generates force by taking in air and using combustion to force gas out of the engine very quickly. A piston engine uses reciprocating pistons to convert pressure into a rotational motion, driving a propeller. A propjet engine uses gas turbines to drive a propeller. 
+
+```{r}
+usedata = data %>% 
+  dplyr::select(`Engine Type`,Length,Height,Range,`Wing Span`,FW) 
+
+colnames(usedata)[1] = "Engine"
+colnames(usedata)[5] = "Wingspan"
+usedata = na.omit(usedata)
+dim(usedata)
+```
+With the relevant variables selected and aircraft with missing observations removed, this leaves n = 802, p = 6.
+
+
+```{r}
+usedata[,2:6] = scale(usedata[,2:6])
+pc = prcomp(usedata[,2:6])
+pairs(pc$x, col = as.factor(usedata$Engine))
+```
+
+There appears to be some grouping by engine type in the principal components, but with a decent amount of overlap. 
+
+Set-up:
+```{r}
+library(MASS)
+set.seed(8473)
+sample = sample(c(T,F),nrow(usedata),replace = T, prob = c(0.7,0.3))
+train = usedata[sample,]
+test = usedata[!sample,]
+```
+Little function to make calculating misclassification rates easier (only works with three classes, which is fine):
+```{r}
+misclass = function(table, num){
+  total = table[1,2] + table[1,3] + table[2,3] + table[2,1] + table[3,1] + table[3,2]
+  return(100*(total/num))
+}
+
+```
+
+## LDA:
+
+```{r}
+lda.fit = lda(Engine~.,data = train)
+lda.pred = predict(lda.fit,test)
+table = table(lda.pred$class,test$Engine)
+table
+misclass(table,nrow(test))
+```
+LDA with all predictors has a misclassification rate of 8.1%
+
+## QDA:
+
+```{r}
+qda.fit = qda(Engine~.,data = train)
+qda.pred = predict(qda.fit,test)
+table = table(qda.pred$class,test$Engine)
+table
+qda = table
+misclass(table,nrow(test))
+```
+
+QDA with all predictors has a misclassification rate of 5.1%
+
+## QDA and LDA with LOOCV:
+
+```{r}
+lda.fit = lda(Engine~.,data = train, CV = T)
+table1 = table(lda.fit$class,train$Engine)
+
+qda.fit = qda(Engine~.,data = train, CV = T)
+table2 = table(qda.fit$class,train$Engine)
+
+table1
+table2
+misclass(table1,nrow(train))
+misclass(table2,nrow(train))
+```
+LOOCV LDA misclassification rate is 12.1%, LOOCV QDA misclassification rate is 4.7%
+
+## LOOCV LDA dropping variables: 
+```{r}
+lda.fit = lda(Engine~.-Length,data = train, CV = T)
+table1 = table(lda.fit$class,train$Engine)
+
+lda.fit = lda(Engine~.-Height,data = train, CV = T)
+table2 = table(lda.fit$class,train$Engine)
+
+lda.fit = lda(Engine~.-Range,data = train, CV = T)
+table3 = table(lda.fit$class,train$Engine)
+
+lda.fit = lda(Engine~.-Wingspan,data = train, CV = T)
+table4 = table(lda.fit$class,train$Engine)
+
+lda.fit = lda(Engine~.-FW,data = train, CV = T)
+table5 = table(lda.fit$class,train$Engine)
+
+table1
+table2
+table3
+table4
+table5
+
+misclass(table1,nrow(train))
+misclass(table2,nrow(train))
+misclass(table3,nrow(train))
+misclass(table4,nrow(train))
+misclass(table5,nrow(train))
+
+```
+
+Removing length (14.7%)
+Removing height (11.3%)
+Removing range (13.6%)
+Removing winspan (13.0%)
+Removing FW (13.2%)
+
+
+
+Therefore, for LDA, dropping height may improve LOOCV error rate slightly. As it is a small difference, this may be due to chance and may not translate to the test dataset. 
+
+Trying LDA on the test data with height removed: 
+
+```{r}
+lda.fit = lda(Engine~.-Height,data = train)
+lda.pred = predict(lda.fit,test)
+table = table(lda.pred$class,test$Engine)
+table
+misclass(table,nrow(test))
+```
+With height removed, the misclassification rate on the test data is 9.6%, which is slightly worse than with all predictors
+
+## LOOCV QDA dropping variables: 
+```{r}
+qda.fit = qda(Engine~.-Length,data = train, CV = T)
+table1 = table(qda.fit$class,train$Engine)
+
+qda.fit = qda(Engine~.-Height,data = train, CV = T)
+table2 = table(qda.fit$class,train$Engine)
+
+qda.fit = qda(Engine~.-Range,data = train, CV = T)
+table3 = table(qda.fit$class,train$Engine)
+
+qda.fit = qda(Engine~.-Wingspan,data = train, CV = T)
+table4 = table(qda.fit$class,train$Engine)
+
+qda.fit = qda(Engine~.-FW,data = train, CV = T)
+table5 = table(qda.fit$class,train$Engine)
+
+table1
+table2
+table3
+table4
+table5
+
+misclass(table1,nrow(train))
+misclass(table2,nrow(train))
+misclass(table3,nrow(train))
+misclass(table4,nrow(train))
+misclass(table5,nrow(train))
+```
+Removing length (4.5%)
+Removing height (5.1%)
+Removing range (4.0%)
+Removing winspan (4.2%)
+Removing FW (11.9%)
+
+Removing range or wingspan might decrease the LOOCV error rate for QDA, however as the error rate was originally small, this may just be due to chance and not be reflected in the test set. Removing fuel capacity increased the LOOCV error rate. 
+```{r}
+qda.fit = qda(Engine~Length+Height+FW,data = train, CV = T)
+table = table(qda.fit$class,train$Engine)
+
+table
+misclass(table,nrow(train))
+
+```
+
+With both range and wingspan removed, the LOOCV misclassification rate is 4.0%, which is still less than with all predictors. However the caveat above still applies. 
+
+Trying QDA on the test data with range and wingspan removed: 
+
+```{r}
+qda.fit = qda(Engine~Length+Height+FW,data = train)
+qda.pred = predict(qda.fit,test)
+table = table(qda.pred$class,test$Engine)
+table
+misclass(table,nrow(test))
+```
+The misclassification rate on the test data with range and wingspan removed is 5.9%, which is more than with all predictors. 
+
+With just wingspan or range removed: 
+```{r}
+qda.fit = qda(Engine~.-Wingspan,data = train)
+qda.pred = predict(qda.fit,test)
+table = table(qda.pred$class,test$Engine)
+table
+misclass(table,nrow(test))
+
+qda.fit = qda(Engine~.-Range,data = train)
+qda.pred = predict(qda.fit,test)
+table = table(qda.pred$class,test$Engine)
+table
+misclass(table,nrow(test))
+```
+Removing either of them increases the misclassification rate, so for QDA the best model is with all predictors.
+
+In all cases, QDA outperforms LDA significantly.
+
+## KNN
+```{r}
+library(class)
+X = as.data.frame(usedata)
+train = sample(1:nrow(X),0.7*nrow(X))
+test = -train
+
+```
+```{r}
+M = 10
+Kmax = 15
+MC = numeric(Kmax)
+for(ctr in 1:M){
+  for(c in train){
+    loo = setdiff(train,c)
+    for (k in 1:Kmax){
+      knn.pred = knn(X[loo,-1],X[c,-1],X[loo,1],k=k)
+      MC[k] = MC[k] + as.numeric(knn.pred!=X[c,1])
+    }
+  }
+}
+MC = MC/M
+```
+```{r}
+plot(1:Kmax,MC/561)
+```
+
+1 is the best value to use for K in this case as it minimizes the LOOCV misclassification rate. 
+
+```{r}
+set.seed(535)
+X$Engine = as.factor(X$Engine)
+knn.pred = knn(X[train,-1],X[test,-1],X$Engine[train],k=1)
+table = table(knn.pred,X$Engine[test])
+table
+knn = table
+misclass(table,length(test))
+
+```
+
+With k = 1, the misclassification rate for KNN is 0.5% on the test data, which outperforms both QDA and LDA. 
+
+## SVM
+
+```{r}
+library(kernlab)
+library(e1071)
+train = as.data.frame(usedata[sample,])
+test = as.data.frame(usedata[!sample,])
+```
+```{r}
+set.seed(4873)
+tune.out = tune(svm,as.factor(Engine)~.,data = train, kernel = "radial",ranges = list(cost = c(0.1,0.3,1,3,10,30,100,300,1000),gamma = c(0.01,0.03,0.1,0.3,1,3,10)))
+tune.out 
+```
+
+As the cost was at the upper limit supplied initially, I re ran it with greater costs to check it wasn't actually greater. 
+
+
+```{r}
+pred = predict(tune.out$best.model,test)
+table = table(pred,test$Engine)
+table
+svm = table
+misclass(table,nrow(test))
+```
+
+In the test set, with the cross validated model (which found the best parameters to be cost = 300, gamma = 0.3), we get misclassification rate of 3.7%. 
+
+## Conclusion 
+
+Based on misclassification rates, the best model is KNN with k = 1. However it is important to consider that the dataset is unbalanced (there are an unequal number of observations in the three categories). By using only the misclassification rate, we are essentially favouring correctly classifying the larger groups (the piston aircraft) over classifying the smaller groups (propjet, and to a lesser extend, jet). This isn't correct, as none of the classifications are more important than one another, and they aren't ordinal. Therefore, it is worth calculating the sensitivity and specificity for the top performing models (KNN, SVM and QDA). 
+
+Function to calculate sensitivity and specificity
+```{r}
+senspec = function(table){
+  #for jet
+  jTP = table[1,1]
+  jTN = table[2,2]+table[2,3]+table[3,2]+table[3,3]
+  jFP = table[1,2]+table[1,3]
+  jFN = table[2,1]+table[3,1]
+  jsen = jTP/(jTP+jFN)
+  jspec = jTN/(jTN+jFP)
+  
+  #for piston
+  pTP = table[2,2]
+  pTN = table[1,1]+table[3,1]+table[1,3]+table[3,3]
+  pFP = table[2,1]+table[2,3]
+  pFN = table[1,2]+table[3,2]
+  psen = pTP/(pTP+pFN)
+  pspec = pTN/(pTN+pFP)
+  
+  #for propjet
+  pjTP = table[3,3]
+  pjTN = table[1,1]+table[1,2]+table[2,1]+table[2,2]
+  pjFP = table[3,1]+table[3,2]
+  pjFN = table[1,3]+table[2,3]
+  pjsen = pjTP/(pjTP+pFN)
+  pjspec = pjTN/(pjTN+pFP)
+  
+  jet = paste("Jet sensitivity: ",as.character(jsen),". Jet specificity:",as.character(jspec))
+  p = paste("Piston sensitivity: ",as.character(psen),". Piston specificity:",as.character(pspec))
+  pj = paste("Propjet sensitivity: ",as.character(pjsen),". Propjet specificity:",as.character(pjspec))
+  
+  avsen = paste("Mean sensitivity: ",mean(jsen,psen,pjsen))
+  avspec = paste("Mean specificity: ",mean(jspec,pspec,pjspec))
+  
+  return(cat(paste(jet,p,pj,avsen,avspec,sep="\n")))
+}
+```
+
+```{r}
+senspec(qda)
+```
+
+```{r}
+senspec(svm)
+```
+
+```{r}
+senspec(knn)
+```
+
+Using sensitvity and specificity, KNN with k = 1 is the best model, as it has the highest average sensitivity and specificity. It is the best by far classifying jets (perfect), and has the highest specificity for pistons. KNN's propjet sensitivity is lower than SVM's propject sensitivity, however, it outperforms SVM in all other metrics. In this case, it isn't more important to correctly classify one group over the other, e.g. it doesn't matter more if a jet is incorrectly identified as a propjet vs a propjet incorrectly identified as a jet. This may change if the context of the classification problem moves beyond just a fun exercise, say if a similar technique was used to identify what type of plane was present on satellite imagery. Then it might be more important to not misclassify a jet, because they present a greater security risk or something like that. 
