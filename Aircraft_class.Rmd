@@ -6,7 +6,7 @@ output:
 ---
 
 ```{r}
-setwd("~/Desktop/Uni/STAT312")
+setwd("~/Desktop/Portfolio/LA Crime Project")
 library(tidyverse)
 data = read_csv("Airplane_Cleaned.csv",show_col_types = F)
 ```
@@ -231,7 +231,10 @@ test = -train
 
 ```
 ```{r}
+#performs LOOCV for k
+#number of times repeated
 M = 10
+#maximum k value ran
 Kmax = 15
 MC = numeric(Kmax)
 for(ctr in 1:M){
@@ -243,10 +246,12 @@ for(ctr in 1:M){
     }
   }
 }
+#averaging error rate
 MC = MC/M
 ```
 ```{r}
-plot(1:Kmax,MC/561)
+plot(1:Kmax,MC/561, xlab = "K", ylab = "Average misclassification rate", pch = 19, xaxt = "n")
+axis(side = 1, at = 1:15, labels = 1:15 )
 ```
 
 1 is the best value to use for K in this case as it minimizes the LOOCV misclassification rate. 
@@ -274,7 +279,7 @@ test = as.data.frame(usedata[!sample,])
 ```
 ```{r}
 set.seed(4873)
-tune.out = tune(svm,as.factor(Engine)~.,data = train, kernel = "radial",ranges = list(cost = c(0.1,0.3,1,3,10,30,100,300,1000),gamma = c(0.01,0.03,0.1,0.3,1,3,10)))
+tune.out = tune(e1071::svm,as.factor(Engine)~.,data = train, kernel = "radial",ranges = list(cost = c(0.1,0.3,1,3,10,30,100,300,1000),gamma = c(0.01,0.03,0.1,0.3,1,3,10)))
 tune.out 
 ```
 
@@ -326,8 +331,8 @@ senspec = function(table){
   p = paste("Piston sensitivity: ",as.character(psen),". Piston specificity:",as.character(pspec))
   pj = paste("Propjet sensitivity: ",as.character(pjsen),". Propjet specificity:",as.character(pjspec))
   
-  avsen = paste("Mean sensitivity: ",mean(jsen,psen,pjsen))
-  avspec = paste("Mean specificity: ",mean(jspec,pspec,pjspec))
+  avsen = paste("Mean sensitivity: ",as.character(mean(c(jsen,psen,pjsen))))
+  avspec = paste("Mean specificity: ",as.character(mean(c(jspec,pspec,pjspec))))
   
   return(cat(paste(jet,p,pj,avsen,avspec,sep="\n")))
 }
